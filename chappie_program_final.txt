@@ -1,0 +1,341 @@
+// IMPORTATION BIBLIOTHEQUE
+#include <arduino.h>       // bibliothèque de fonctions arduino
+#define IR_SMALLD_NEC
+#include <IRsmallDecoder.h>
+
+#define IRStartPin    2   //Déclaration de numéro de broche pour le récepteur infrarouge
+// DECLARATION DES NUMEROS DES BROCHES
+
+// SETUP PORTS SENS MOTEURS + VITESSE MOTEURS
+#define D_DIR         8   // Déclaration de numéro de broche pour l'entrée A (PWM) n°1 du pont en H
+#define D_PWM         9   // Déclaration de numéro de broche pour l'entrée A (PWM) n°2  du pont en H
+#define G_PWM         10  // Déclaration de numéro de broche pour l'entrée B (PWM) n°1  du pont en H
+#define G_DIR         11  // Déclaration de numéro de broche pour l'entrée B (PWM) n°2  du pont en H
+
+// CAPTEURS D'ADVERSAIRE
+#define GP2Y_AVD      A3  // Déclaration de numéro de broche pour le capteur d'adversaire avant droit
+#define GP2Y_AVG      A4  // Déclaration de numéro de broche pour le capteur d'adversaire avant gauche
+#define GP2Y_G        A5  // Déclaration de numéro de broche pour le capteur d'adversaire de côté
+
+// CAPTEURS DE CONTRASTE
+#define CNY_AV1       A2  // Déclaration de numéro de broche pour le capteur de contraste avant gauche
+#define CNY_AV2       A1  // Déclaration de numéro de broche pour le capteur de contraste avant droit
+#define CNY_AR        A7  // Déclaration de numéro de broche pour le capteur de contraste arrière
+
+// LED
+#define LED_ON        3   // Déclaration de numéro de broche pour la LED rouge
+
+
+
+
+
+// DECLARATION DE VARIABLES
+int MaxMoyenne = 1;             // Coefficient de moyenne pour la fonction Capteur() (précision des valeurs)
+int Capt_Ligne_AVG, Capt_Ligne_AVD, Capt_Ligne_AR;
+int CapAvantG, CapAvantD, CapCote;
+IRsmallDecoder irDecoder(2);  // Initialisation du décodeur IR
+irSmallD_t irData;            // Initialisation Variable irData
+int combat =0;
+
+
+
+
+void setup() {
+
+  pinMode(LED_ON, OUTPUT); // Déclaration de la broche de la LED comme sortie
+  digitalWrite(LED_ON, LOW );
+  pinMode(CNY_AV1, INPUT);      // Initialisation de la broche en question en mode entrée
+  pinMode(CNY_AV2, INPUT);      // Initialisation de la broche en question en mode entrée
+  pinMode(CNY_AR, INPUT);       // Initialisation de la broche en question en mode entrée
+  pinMode(D_PWM, OUTPUT);       // Initialisation de la broche en question en mode sortie
+  pinMode(D_DIR, OUTPUT);       // Initialisation de la broche en question en mode sortie
+  pinMode(G_PWM, OUTPUT);       // Initialisation de la broche en question en mode sortie
+  pinMode(G_DIR, OUTPUT);       // Initialisation de la broche en question en mode sortie
+  pinMode(GP2Y_AVD, INPUT);     // Initialisation de la broche en question en mode entrée
+  pinMode(GP2Y_AVG, INPUT);     // Initialisation de la broche en question en mode entrée
+  pinMode(GP2Y_G, INPUT);       // Initialisation de la broche en question en mode entrée
+  pinMode(IRStartPin, INPUT);   //Initialisation de la broche en question en mode entrée
+  Serial.begin(9600);
+  Serial.print("CHAPPIE IS READY.");
+}
+
+
+
+
+void CHAPPIE() {
+  // Exécute la tâche de détection des adversaires
+  Capt_Adversaire();
+  Serial.println("Capt_Adversaire");
+  // Ajoutez un court délai si nécessaire pour éviter un traitement trop rapide
+  delay(10);
+  // Exécute la tâche de détection des adversaires
+  Capt_ADV();
+  Serial.println("Capt_ADV");
+  // Ajoutez un court délai si nécessaire pour éviter un traitement trop rapide
+  delay(10);
+  Capts_Blanc();
+  Serial.println("LECTURE Capts_Blanc");
+  // Ajoutez un court délai si nécessaire pour éviter un traitement trop rapide
+  delay(10);
+}
+
+
+
+
+// PROGRAMME Sumo_Mvt
+
+
+
+
+void Direction(int DPWM1, int D_DIR_STATE, int GPWM2, int G_DIR_STATE) {
+  analogWrite(D_PWM, DPWM1);
+  digitalWrite(D_DIR, D_DIR_STATE);
+  analogWrite(G_PWM, GPWM2);
+  digitalWrite(G_DIR, G_DIR_STATE);
+  Serial.print("VitD = ");
+  Serial.print(DPWM1);
+  Serial.print("  VitG = ");
+  Serial.print(GPWM2);
+  Serial.print("  DirD = ");
+  Serial.print(D_DIR_STATE == HIGH ? "HIGH" : "LOW");
+  Serial.print("  DirG = ");
+  Serial.println(G_DIR_STATE == HIGH ? "HIGH" : "LOW");
+}
+
+
+
+
+// PROGRAMME Capt_Ligne
+
+
+  
+
+// NE PAS TOUCHER
+void Capteur() {
+  byte Capt_Ligne_AVG_tmp = 0, Capt_Ligne_AVD_tmp = 0, Capt_Ligne_AR_tmp = 0;
+  for (int i = 1; i < (MaxMoyenne + 1); i++) {
+    Capt_Ligne_AVG_tmp = Capt_Ligne_AVG_tmp + map(analogRead(CNY_AV1), 0, 1023, 0, 255);
+    Capt_Ligne_AVD_tmp = Capt_Ligne_AVD_tmp + map(analogRead(CNY_AV2), 0, 1023, 0, 255);
+    Capt_Ligne_AR_tmp = Capt_Ligne_AR_tmp + map(analogRead(CNY_AR), 0, 1023, 0, 255);
+  }
+  Capt_Ligne_AVG = Capt_Ligne_AVG_tmp / MaxMoyenne;
+  Capt_Ligne_AVD = Capt_Ligne_AVD_tmp / MaxMoyenne;
+  Capt_Ligne_AR = Capt_Ligne_AR_tmp / MaxMoyenne;
+  Serial.print("Capteur Ligne Avant Gauche ");
+  Serial.print(Capt_Ligne_AVG);
+  Serial.print("  Capteur Ligne Avant Droit ");
+  Serial.print(Capt_Ligne_AVD);
+  Serial.print("  Capteur Ligne Arrière ");
+  Serial.print(Capt_Ligne_AR);
+  Serial.print("\n");
+}
+// NE PAS TOUCHER
+
+
+  
+
+void Capts_Blanc() {
+  Capteur();
+  // Effectue la lecture des capteurs
+  // Vérifie si l'un des capteurs détecte du blanc
+  
+  
+  // DEMI-TOUR DROITE
+ if (Capt_Ligne_AVD < 200) {
+  
+    digitalWrite(LED_ON, HIGH); // Allumer la LED
+    
+    digitalWrite(D_DIR, HIGH); // Direction moteur droit vers l'arrière
+    digitalWrite(G_DIR, LOW);  // Direction moteur gauche vers l'arrière
+    analogWrite(D_PWM, 255); // Vitesse moteur droit maximale
+    analogWrite(G_PWM, 255); // Vitesse moteur gauche maximale
+
+    delay(500); // Attendre 500 millisecondes = 0,5 s
+  
+    digitalWrite(D_DIR, LOW); // Direction moteur droit
+    digitalWrite(G_DIR, HIGH);  // Direction moteur gauche
+    analogWrite(D_PWM, 180); // Vitesse moteur droit //180
+    analogWrite(G_PWM, 0); // Vitesse moteur gauche   // Effectue un demi-tour //140
+    
+    digitalWrite(LED_ON, LOW); // OFF la LED
+
+    delay(500); // Attendre 500 millisecondes = 0,5 s
+      
+    digitalWrite(D_DIR, LOW); // Direction moteur droit AVANCER TOUT DROIT
+    digitalWrite(G_DIR, HIGH);  // Direction moteur gauche AVANCER TOUT DROIT 
+    analogWrite(D_PWM, 200); // Vitesse moteur droit
+    analogWrite(G_PWM, 200); // Vitesse moteur gauche
+    
+   // Attendre 200 millisecondes = 0,2 s/
+   delay(100);
+}
+
+
+  // DEMI-TOUR GAUCHE
+ else if (Capt_Ligne_AVG < 200) {
+
+    digitalWrite(LED_ON, HIGH); // Allumer la LED
+    
+    digitalWrite(D_DIR, HIGH); // Direction moteur droit
+    digitalWrite(G_DIR, LOW);  // Direction moteur gauche
+    analogWrite(D_PWM, 255); // Vitesse moteur droit
+    analogWrite(G_PWM, 255); // Vitesse moteur gauche   
+
+    delay(500); // Attendre 500 millisecondes = 0,5 s
+  
+    digitalWrite(D_DIR, LOW); // Direction moteur droit
+    digitalWrite(G_DIR, HIGH);  // Direction moteur gauche
+    analogWrite(D_PWM, 0); // Vitesse moteur droit //180
+    analogWrite(G_PWM, 180); // Vitesse moteur gauche   // Effectue un demi-tour //180
+    
+    digitalWrite(LED_ON, LOW); // OFF la LED
+
+    delay(500); // Attendre 500 millisecondes = 0,5 s
+      
+    digitalWrite(D_DIR, LOW); // Direction moteur droit AVANCER TOUT DROIT
+    digitalWrite(G_DIR, HIGH);  // Direction moteur gauche AVANCER TOUT DROIT 
+    analogWrite(D_PWM, 200); // Vitesse moteur droit
+    analogWrite(G_PWM, 200); // Vitesse moteur gauche
+    
+   // Attendre 200 millisecondes = 0,2 s/
+   delay(100);
+}
+
+
+
+
+
+    // AVANT
+ else if (Capt_Ligne_AR < 200) {
+
+    digitalWrite(LED_ON, HIGH); // Allumer la LED
+    
+    digitalWrite(D_DIR, LOW); // Direction moteur droit
+    digitalWrite(G_DIR, HIGH);  // Direction moteur gauche
+    analogWrite(D_PWM, 255); // Vitesse moteur droit
+    analogWrite(G_PWM, 255); // Vitesse moteur gauche  
+
+    digitalWrite(LED_ON, LOW); // OFF la LED
+
+   // Attendre 200 millisecondes = 0,2 s/
+   delay(100);
+ }
+ /*else {
+ Direction(60, LOW, 60, HIGH); // Continue sa route de base
+ delay(250);
+ Direction(240, LOW, 120, HIGH); // Continue sa route de base
+ delay(250);
+ Direction(120, LOW, 240, HIGH); // Continue sa route de base
+ delay(250);
+ Direction(60, LOW, 60, HIGH); // Continue sa route de base
+ delay(250);
+   }
+  }
+ }
+}*/
+ else {
+    digitalWrite(D_DIR, LOW); // Direction moteur droit
+    digitalWrite(G_DIR, HIGH);  // Direction moteur gauche
+    analogWrite(D_PWM, 60); // Vitesse moteur droit
+    analogWrite(G_PWM, 60); // Vitesse moteur gauche 
+ delay(150);
+    // Tourner vers la gauche
+    digitalWrite(D_DIR, LOW); // Direction moteur droit en avant
+    digitalWrite(G_DIR, HIGH); // Direction moteur gauche en arrière
+    analogWrite(D_PWM, 0); // Vitesse moteur droit //33
+    analogWrite(G_PWM, 100); // Vitesse moteur gauche //66
+ delay(100);
+    // Tourner vers la droite
+    digitalWrite(D_DIR, LOW); // Direction moteur droit en arrière
+    digitalWrite(G_DIR, HIGH); // Direction moteur gauche en avant
+    analogWrite(D_PWM, 100); // Vitesse moteur droit //66
+    analogWrite(G_PWM, 0); // Vitesse moteur gauche //33
+delay(100); //100
+   }
+  }
+
+
+
+
+// PROGRAMME Capt_Adversaire_Original
+
+
+
+
+// NE PAS TOUCHER
+void Capt_ADV() 
+{  // Effectue la lecture des capteurs
+  byte CapAvantG_tmp = 0, CapAvantD_tmp = 0, CapCote_tmp = 0;
+  for (int i = 1; i < (MaxMoyenne + 1); i++) {
+    CapAvantG_tmp = CapAvantG_tmp + map(analogRead(GP2Y_AVG), 0, 614, 0, 255);
+    CapAvantD_tmp = CapAvantD_tmp + map(analogRead(GP2Y_AVD), 0, 614, 0, 255);
+    CapCote_tmp = CapCote_tmp + map(analogRead(GP2Y_G)      , 0, 614, 0, 255);
+  }
+  CapAvantG = CapAvantG_tmp / MaxMoyenne;
+  CapAvantD = CapAvantD_tmp / MaxMoyenne;
+  CapCote = CapCote_tmp / MaxMoyenne;
+  Serial.print("  CaptAvantG ");
+  Serial.print(CapAvantG);
+  Serial.print("  CaptAvantD ");
+  Serial.print(CapAvantD);
+  Serial.print("  CaptCote ");
+  Serial.print(CapCote);
+  Serial.print("\n");
+}
+// NE PAS TOUCHER
+
+
+
+
+void Capt_Adversaire()
+{
+ if (CapAvantG > 100 && CapAvantD > 100) {
+        
+ Direction(255, LOW, 255, HIGH); // Avancer tout droit si les capteurs avant gauche et avant droit détectent
+ delay(1000); 
+ Direction(60, LOW, 60, HIGH); // Arrêter le demi-tour
+ } 
+ else if (CapCote > 100) {
+ Direction(255, LOW, 0, HIGH); // Tourner vers le côté si le capteur côté détecte
+ delay(250); 
+ } 
+ else if (CapAvantG > 100) {
+ Direction(200, LOW, 100, HIGH); // Tourner à gauche si le capteur avant gauche détecte
+  delay(125);
+ }
+ else if(CapAvantD > 100) {
+ Direction(100, LOW, 200, HIGH); // Tourner à droite si le capteur avant droit détecte
+  delay(125);
+ }
+}
+
+
+void loop() {
+if (combat == 0)
+  {
+    int Start = 0;
+    Start = irDecoder.dataAvailable(irData);                         //Récupération de l'état du signal infrarouge
+  Serial.print("Start = ");
+  Serial.println(Start);
+  if (Start == 1)
+        {
+        combat=1;
+        }
+  Serial.println("Repos");
+  }
+else { 
+  CHAPPIE();
+  Serial.println("COMBAT");
+  }
+}
+/*void radar() { //LA FONCTION RADAR FAIT QUE LE ROBOT AVANCE TOUT DROIT PENDANT 2 SECONDES (2000ms) puis FAIT UN 360° SUR LUI MEME A VITESSE 60 PENDANT 1,4 SECONDE (1400ms) 
+
+  // Avancer pendant 2 secondes
+  Direction(65, LOW, 65, HIGH); // Avancer tout droit
+  delay(2000); // Avancer pendant 2 secondes
+
+  // Effectuer le demi-tour initial
+  Direction(60, LOW, 60, LOW); // Démarrer le demi-tour
+  delay(1400); // Attendre un peu pour que le demi-tour se termine
+
+}*/
