@@ -2,7 +2,7 @@
   <img src="docs/cover.png" alt="Chappie, 2nd place at Robot Sumo 2024" width="720">
 </p>
 
-# 🏆 Chappie, autonomous sumo robot
+# Chappie, autonomous sumo robot
 
 The Chappie program that enabled me to win **2nd place** in the regional Robot Sumo 2024 competition with the GEII department of the Bordeaux IUT.
 
